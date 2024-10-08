@@ -17,15 +17,15 @@ jobs:
       - name: Create Standup Issue
         uses: peter-evans/create-issue@v4
         with:
-          title: "Daily Standup - ${{ github.event.schedule ? format('Today's Standup', '') : 'Manual Standup' }}"
+          title: "Daily Standup - $(date +'%Y-%m-%d')"
           body: |
-            **Daily Standup - ${{ github.event.schedule ? 'Scheduled' : 'Manual' }}**
+            **Daily Standup - $(date +'%Y-%m-%d')**
             
             Please provide the following details:
             
-            1. **Yesterday Tasks: -**
-            2. **Today Tasks: -**
-            3. **Impediments!**
+            1. **Yesterday Tasks:**
+            2. **Today Tasks:**
+            3. **Impediments:**
             
             @here
           labels: 'Your Daily Standup'
