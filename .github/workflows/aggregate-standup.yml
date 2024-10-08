@@ -32,6 +32,7 @@ jobs:
           gh issue list --label standup --state open --limit 10 > standup_issues.txt
 
       - name: Create Summary Issue
+        id: create_summary_issue
         uses: peter-evans/create-issue@v4
         with:
           title: "Standup Summary - $(date +'%Y-%m-%d')"
@@ -57,4 +58,4 @@ jobs:
       # Notify Slack about the created Standup Summary
       - name: Send Notification to Slack
         run: |
-          curl -X POST -H 'Content-type: application/json' --data '{"text":"Standup Summary has been created for today: <YOUR_GITHUB_REPOSITORY_URL/issues>"}' ${{ secrets.SLACK_WEBHOOK_URL }}
+          curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"Standup Summary for $(date +'%Y-%m-%d') has been created: ${steps.create_summary_issue.outputs.issue-url}\"}" ${{ secrets.SLACK_WEBHOOK_URL }}
