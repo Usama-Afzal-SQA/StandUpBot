@@ -14,12 +14,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Install GitHub CLI
+      - name: Install GitHub CLI and jq
         run: |
           sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
           sudo apt-add-repository https://cli.github.com/packages
           sudo apt update
-          sudo apt install gh -y
+          sudo apt install gh jq -y
 
       - name: Authenticate GitHub CLI
         env:
@@ -55,7 +55,28 @@ jobs:
             gh issue close $issue_number
           done < standup_issues.txt
 
-      # Notify Slack about the created Standup Summary
-      - name: Send Notification to Slack
+      # Notify Slack about the created Standup Summary and create a thread
+      - name: Send Standup Summary to Slack
+        id: send_slack
         run: |
-          curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"Standup Summary for $(date +'%Y-%m-%d') has been created: ${steps.create_summary_issue.outputs.issue-url}\"}" ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Post the standup summary using Slack's Web API and capture the response
+          RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            -H "Content-type: application/json" \
+            --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"📝 *Standup Summary for $(date +'%Y-%m-%d')* has been created: ${steps.create_summary_issue.outputs.issue-url}\"}")
+
+          # Extract the 'ts' from the response using jq
+          THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
+
+          # Export the thread timestamp for later steps if needed
+          echo "::set-output name=thread_ts::$THREAD_TS"
+
+      # Optional: Post Follow-Up Message in Thread
+      - name: Post Follow-Up Message in Thread
+        if: success()
+        run: |
+          THREAD_TS=${{ steps.send_slack.outputs.thread_ts }}
+          curl -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
+            -H "Content-type: application/json" \
+            --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"Feel free to discuss your updates here!\", \"thread_ts\":\"${THREAD_TS}\"}"
