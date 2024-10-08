@@ -29,7 +29,7 @@ jobs:
 
       - name: Fetch Standup Issues
         run: |
-          gh issue list --label standup --state open --limit 20 > standup_issues.txt
+          gh issue list --label standup --state open --limit 10 > standup_issues.txt
 
       - name: Create Summary Issue
         uses: peter-evans/create-issue@v4
@@ -45,7 +45,7 @@ jobs:
             done)
           labels: 'standup-summary'
 
-          # Optional: Close Standup Issues After Summarizing
+      # Optional: Close Standup Issues After Summarizing
       - name: Close Standup Issues
         if: success()
         run: |
@@ -53,3 +53,8 @@ jobs:
             issue_number=$(echo "$line" | awk '{print $1}')
             gh issue close $issue_number
           done < standup_issues.txt
+
+      # Notify Slack about the created Standup Summary
+      - name: Send Notification to Slack
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"Standup Summary has been created for today: <YOUR_GITHUB_REPOSITORY_URL/issues>"}' ${{ secrets.SLACK_WEBHOOK_URL }}
