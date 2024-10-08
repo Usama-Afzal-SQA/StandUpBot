@@ -14,18 +14,17 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install gh -y
+
+      - name: Authenticate GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo $GITHUB_TOKEN | gh auth login --with-token
+
       - name: Create Standup Issue
-        uses: peter-evans/create-issue@v4
-        with:
-          title: "Daily Standup - $(date +'%Y-%m-%d')"
-          body: |
-            **Daily Standup - $(date +'%Y-%m-%d')**
-            
-            Please provide the following details:
-            
-            1. **Yesterday Tasks:**
-            2. **Today Tasks:**
-            3. **Impediments:**
-            
-            @here
-          labels: 'Your Daily Standup'
+        run: |
+          gh issue create --title "Daily Standup - $(date +'%Y-%m-%d')" --body "## Daily Standup - $(date +'%Y-%m-%d')\n\nPlease provide the following details:\n\n1. **Yesterday Tasks:**\n2. **Today Tasks:**\n3. **Impediments:**\n\n@here" --label "Your Daily Standup"
