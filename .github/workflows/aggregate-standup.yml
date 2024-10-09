@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install GitHub CLI and jq
         run: |
@@ -32,19 +32,17 @@ jobs:
           gh issue list --label standup --state open --limit 10 > standup_issues.txt
 
       - name: Create Summary Issue
-        id: create_summary_issue
-        uses: peter-evans/create-issue@v4
-        with:
-          title: "Standup Summary - $(date +'%Y-%m-%d')"
-          body: |
-            **Standup Summary for $(date +'%Y-%m-%d')**
-
-            $(cat standup_issues.txt | while read -r line; do
-              issue_number=$(echo "$line" | awk '{print $1}')
-              issue_title=$(echo "$line" | cut -d' ' -f2-)
-              echo "- [#${issue_number}] ${issue_title}"
-            done)
-          labels: 'standup-summary'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          issue_body="**Standup Summary for $(date +'%Y-%m-%d')**\n\n"
+          while read -r line; do
+            issue_number=$(echo "$line" | awk '{print $1}')
+            issue_title=$(echo "$line" | cut -d' ' -f2-)
+            issue_body="$issue_body- [#$issue_number] $issue_title\n"
+          done < standup_issues.txt
+          
+          gh issue create --title "Standup Summary - $(date +'%Y-%m-%d')" --body "$issue_body" --label "standup-summary"
 
       # Optional: Close Standup Issues After Summarizing
       - name: Close Standup Issues
@@ -64,6 +62,9 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
             -H "Content-type: application/json" \
             --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"📝 *Standup Summary for $(date +'%Y-%m-%d')* has been created: ${steps.create_summary_issue.outputs.issue-url}\"}")
+
+          # Log the full response to check for errors
+          echo "Slack API Response: $RESPONSE"
 
           # Extract the 'ts' from the response using jq
           THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
