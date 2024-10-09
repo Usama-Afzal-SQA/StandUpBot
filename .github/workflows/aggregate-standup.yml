@@ -83,4 +83,4 @@ jobs:
           curl -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
             -H "Content-type: application/json" \
-            --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"Feel free to discuss your updates here!\", \"thread_ts\":\"${THREAD_TS}\"}"
+            --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"Please post your standup in this thread:-\n\nYesterday Tasks:\nToday Tasks:\nAny Impediments!\", \"thread_ts\":\"${THREAD_TS}\"}"
