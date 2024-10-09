@@ -12,14 +12,17 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Install GitHub CLI and jq
         run: |
-          sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
-          sudo apt-add-repository https://cli.github.com/packages
-          sudo apt update
-          sudo apt install gh jq -y
+          sudo apt-get update
+          sudo apt-get install -y curl
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install gh jq -y
 
       - name: Authenticate GitHub CLI
         env:
@@ -44,7 +47,6 @@ jobs:
           
           gh issue create --title "Standup Summary - $(date +'%Y-%m-%d')" --body "$issue_body" --label "standup-summary"
 
-      # Optional: Close Standup Issues After Summarizing
       - name: Close Standup Issues
         if: success()
         run: |
@@ -53,26 +55,18 @@ jobs:
             gh issue close $issue_number
           done < standup_issues.txt
 
-      # Notify Slack about the created Standup Summary and create a thread
       - name: Send Standup Summary to Slack
         id: send_slack
         run: |
-          # Post the standup summary using Slack's Web API and capture the response
           RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer ${{ secrets.SLACK_BOT_TOKEN }}" \
             -H "Content-type: application/json" \
             --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"📝 *Standup Summary for $(date +'%Y-%m-%d')* has been created: ${steps.create_summary_issue.outputs.issue-url}\"}")
 
-          # Log the full response to check for errors
           echo "Slack API Response: $RESPONSE"
-
-          # Extract the 'ts' from the response using jq
           THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
-
-          # Export the thread timestamp for later steps if needed
           echo "::set-output name=thread_ts::$THREAD_TS"
 
-      # Optional: Post Follow-Up Message in Thread
       - name: Post Follow-Up Message in Thread
         if: success()
         run: |
