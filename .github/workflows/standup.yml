@@ -19,10 +19,35 @@ jobs:
           sudo apt-get update
           sudo apt-get install gh -y
 
-      - name: Create Standup Issue
+      - name: Message Users Individually
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Use the provided GitHub token directly
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          gh issue create --title "Daily Standup - $(date +'%Y-%m-%d')" \
-                          --body "## Daily Standup - $(date +'%Y-%m-%d')\n\nPlease provide the following details:\n\n1. **Yesterday Tasks:**\n2. **Today Tasks:**\n3. **Impediments:**\n\n@here" \
-                          --label "Your Daily Standup"
+          USERS=("U066LTEPJF7") # List of Slack users
+          for USER in "${USERS[@]}"; do
+            # Send message to each user
+            RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-type: application/json" \
+              --data "{\"channel\":\"@$USER\", \"text\":\"Good morning! It's time for your daily standup.\n\nYesterday Tasks:\nToday Tasks:\nAny Impediments!\"}")
+
+            # Extract timestamp for the message thread
+            THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
+            
+            # Store responses (you may store them in a file or pass them as outputs)
+            echo "::set-output name=thread_ts_${USER}::$THREAD_TS"
+          done
+
+      - name: Collect and Post Responses to Thread
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          USERS=("U066LTEPJF7") # Same list of users
+          for USER in "${USERS[@]}"; do
+            THREAD_TS=$(echo "${{ steps.send-standup-prompt.outputs.thread_ts_${USER} }}")
+            # Append each user's response to the standup thread in Slack
+            curl -s -X POST https://slack.com/api/chat.postMessage \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-type: application/json" \
+              --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"@$USER's standup response has been collected.\", \"thread_ts\":\"$THREAD_TS\"}"
+          done
