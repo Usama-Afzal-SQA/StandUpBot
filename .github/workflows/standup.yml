@@ -12,41 +12,65 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4  # Use the latest version compatible with Node 20
+        uses: actions/checkout@v4
 
       - name: Install GitHub CLI
         run: |
           sudo apt-get update
           sudo apt-get install gh -y
 
+      - name: Post Main Message in Channel
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          # Post main message to #stand-up-meeting channel
+          RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-type: application/json" \
+            --data '{"channel":"#stand-up-meeting", "text":"📝 Today’s standup summary for $(date +'%Y-%m-%d') has started. Please wait for your direct message and provide your response!"}')
+
+          # Extract thread timestamp for future reference
+          THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
+          
+          # Save thread_ts for later use (to append replies)
+          echo "THREAD_TS=$THREAD_TS" >> $GITHUB_ENV
+
       - name: Message Users Individually
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          USERS=("U066LTEPJF7") # List of Slack users
+          USERS=("U066LTEPJF7")  # List of Slack users
           for USER in "${USERS[@]}"; do
-            # Send message to each user
-            RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
-              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-              -H "Content-type: application/json" \
-              --data "{\"channel\":\"@$USER\", \"text\":\"Good morning! It's time for your daily standup.\n\nYesterday Tasks:\nToday Tasks:\nAny Impediments!\"}")
-
-            # Extract timestamp for the message thread
-            THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
-            
-            # Store the response in a way that can be accessed later
-            echo "$USER:$THREAD_TS" >> thread_ts.txt
-          done
-
-      - name: Collect and Post Responses to Thread
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: |
-          # Read the thread timestamps from the file
-          while IFS=: read -r USER THREAD_TS; do
-            # Append each user's response to the standup thread in Slack
+            # Send a DM to each user asking for standup information
             curl -s -X POST https://slack.com/api/chat.postMessage \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
-              --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"@$USER's standup response has been collected.\", \"thread_ts\":\"$THREAD_TS\"}"
-          done < thread_ts.txt
+              --data "{\"channel\":\"@$USER\", \"text\":\"Good morning! Please provide your standup response:\n\nYesterday Tasks:\nToday Tasks:\nAny Blockers?\"}"
+          done
+
+      - name: Poll for User Responses and Post to Thread
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          THREAD_TS: ${{ env.THREAD_TS }}
+        run: |
+          # Iterate over users and check their responses in DMs
+          USERS=("U066LTEPJF7")
+
+          for USER in "${USERS[@]}"; do
+            # Poll the DM channel of each user for a response (within last 12 hours)
+            RESPONSE=$(curl -s -X GET "https://slack.com/api/conversations.history?channel=@${USER}&limit=1" \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-Type: application/x-www-form-urlencoded")
+
+            # Extract the message text from the response
+            USER_RESPONSE=$(echo $RESPONSE | jq -r '.messages[0].text')
+
+            # Check if there is a valid response
+            if [[ "$USER_RESPONSE" != "null" ]]; then
+              # Post the user response as a reply in the main thread
+              curl -s -X POST https://slack.com/api/chat.postMessage \
+                -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+                -H "Content-type: application/json" \
+                --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"@$USER's standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}"
+            fi
+          done
