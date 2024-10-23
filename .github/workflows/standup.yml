@@ -35,17 +35,30 @@ jobs:
           # Save thread_ts for later use (to append replies)
           echo "THREAD_TS=$THREAD_TS" >> $GITHUB_ENV
 
-      - name: Message Users Individually
+      - name: Get DM Channel for Each User
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
           USERS=("U066LTEPJF7")  # List of Slack users
+          
           for USER in "${USERS[@]}"; do
+            # Open a DM channel with the user
+            DM_CHANNEL_RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.open \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-type: application/json" \
+              --data "{\"users\":\"$USER\"}")
+
+            # Extract the DM channel ID
+            DM_CHANNEL_ID=$(echo $DM_CHANNEL_RESPONSE | jq -r '.channel.id')
+
+            # Save the DM channel ID to a file
+            echo "$USER:$DM_CHANNEL_ID" >> dm_channels.txt
+
             # Send a DM to each user asking for standup information
             curl -s -X POST https://slack.com/api/chat.postMessage \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
-              --data "{\"channel\":\"@$USER\", \"text\":\"Good morning! Please provide your standup response:\n\nYesterday Tasks:\nToday Tasks:\nAny Blockers?\"}"
+              --data "{\"channel\":\"$DM_CHANNEL_ID\", \"text\":\"Good morning! Please provide your standup response:\n\nYesterday Tasks:\nToday Tasks:\nAny Blockers?\"}"
           done
 
       - name: Poll for User Responses and Post to Thread
@@ -53,19 +66,17 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           THREAD_TS: ${{ env.THREAD_TS }}
         run: |
-          # List of Slack users
-          USERS=("U066LTEPJF7" "U066LTEPJF8")
-      
-          for USER in "${USERS[@]}"; do
-            # Poll the DM channel for each user and retrieve the latest message
-            RESPONSE=$(curl -s -X POST https://slack.com/api/im.history \
+          # Iterate over users and their DM channel IDs
+          while IFS=: read -r USER DM_CHANNEL_ID; do
+            # Poll the DM channel for the latest message
+            RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
-              --data "{\"channel\":\"$USER\", \"limit\": 1}")
-      
+              --data "{\"channel\":\"$DM_CHANNEL_ID\", \"limit\": 1}")
+
             # Extract the latest message from the user's DM
             USER_RESPONSE=$(echo $RESPONSE | jq -r '.messages[0].text')
-      
+
             # Check if the response is valid
             if [[ "$USER_RESPONSE" != "null" ]]; then
               # Post the user response as a reply in the thread under the main message
@@ -74,4 +85,4 @@ jobs:
                 -H "Content-type: application/json" \
                 --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"@$USER's standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}"
             fi
-          done
+          done < dm_channels.txt
