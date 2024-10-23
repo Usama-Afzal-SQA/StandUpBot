@@ -74,11 +74,12 @@ jobs:
               -H "Content-type: application/json" \
               --data "{\"channel\":\"$DM_CHANNEL_ID\", \"limit\": 1}")
 
-            # Extract the latest message from the user's DM (User's standup response)
+            # Extract the latest message details
             USER_RESPONSE=$(echo $RESPONSE | jq -r '.messages[0].text')
+            USER_ID=$(echo $RESPONSE | jq -r '.messages[0].user')
 
-            # Check if the response is valid and not the bot's own message
-            if [[ "$USER_RESPONSE" != "Good morning! Please provide your standup response:" && "$USER_RESPONSE" != "null" ]]; then
+            # Check if the response was sent by the user and is not null
+            if [[ "$USER_ID" == "$USER" && "$USER_RESPONSE" != "null" ]]; then
               # Post the user response as a reply in the thread under the main message
               curl -s -X POST https://slack.com/api/chat.postMessage \
                 -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
