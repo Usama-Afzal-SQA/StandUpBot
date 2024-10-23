@@ -27,7 +27,7 @@ jobs:
           RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H "Content-type: application/json" \
-            --data '{"channel":"#stand-up-meeting", "text":"📝 Today’s standup summary for $(date +'%Y-%m-%d') has started. Please wait for your direct message and provide your response!"}')
+            --data '{"channel":"#test-bot", "text":"📝 Today’s standup summary for $(date +'%Y-%m-%d') has started. Please wait for your direct message and provide your response!"}')
 
           # Extract thread timestamp for future reference
           THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
@@ -51,10 +51,10 @@ jobs:
             # Extract the DM channel ID
             DM_CHANNEL_ID=$(echo $DM_CHANNEL_RESPONSE | jq -r '.channel.id')
 
-            # Save the DM channel ID to a file
+            # Save the DM channel ID to a file for later use
             echo "$USER:$DM_CHANNEL_ID" >> dm_channels.txt
 
-            # Send a DM to each user asking for standup information
+            # Send a DM to each user asking for standup information (No response to thread yet)
             curl -s -X POST https://slack.com/api/chat.postMessage \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
@@ -68,21 +68,21 @@ jobs:
         run: |
           # Iterate over users and their DM channel IDs
           while IFS=: read -r USER DM_CHANNEL_ID; do
-            # Poll the DM channel for the latest message
+            # Poll the DM channel for the latest message (waiting for the user's response)
             RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
               --data "{\"channel\":\"$DM_CHANNEL_ID\", \"limit\": 1}")
 
-            # Extract the latest message from the user's DM
+            # Extract the latest message from the user's DM (User's standup response)
             USER_RESPONSE=$(echo $RESPONSE | jq -r '.messages[0].text')
 
-            # Check if the response is valid
-            if [[ "$USER_RESPONSE" != "null" ]]; then
+            # Check if the response is valid and not the bot's own message
+            if [[ "$USER_RESPONSE" != "Good morning! Please provide your standup response:" && "$USER_RESPONSE" != "null" ]]; then
               # Post the user response as a reply in the thread under the main message
               curl -s -X POST https://slack.com/api/chat.postMessage \
                 -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
                 -H "Content-type: application/json" \
-                --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"@$USER's standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}"
+                --data "{\"channel\":\"#test-bot\", \"text\":\"@$USER's standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}"
             fi
           done < dm_channels.txt
