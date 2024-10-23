@@ -23,15 +23,15 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          # Post main message to #stand-up-meeting channel
+          # Post main message to #test-bot channel
           RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H "Content-type: application/json" \
-            --data '{"channel":"#test-bot", "text":"📝 Today’s standup summary for $(date +'%Y-%m-%d') has started. Please wait for your direct message and provide your response!"}')
+            --data "{\"channel\":\"#test-bot\", \"text\":\"📝 Today’s standup summary for $(date +'%Y-%m-%d') has started. Please wait for your direct message and provide your response!\"}")
 
           # Extract thread timestamp for future reference
           THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
-          
+
           # Save thread_ts for later use (to append replies)
           echo "THREAD_TS=$THREAD_TS" >> $GITHUB_ENV
 
@@ -40,7 +40,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
           USERS=("U066LTEPJF7")  # List of Slack users
-          
+
           for USER in "${USERS[@]}"; do
             # Open a DM channel with the user
             DM_CHANNEL_RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.open \
