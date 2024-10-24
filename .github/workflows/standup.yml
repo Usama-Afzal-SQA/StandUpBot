@@ -31,8 +31,11 @@ jobs:
           # Extract the thread_ts (timestamp of the main message)
           THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
 
-          # Save the thread_ts for future workflows
-          echo "THREAD_TS=$THREAD_TS" >> $GITHUB_ENV
+          # Log the extracted thread_ts for debugging purposes
+          echo "Extracted THREAD_TS: $THREAD_TS"
+
+          # Save the thread_ts in a file so it can be used by the next workflow
+          echo "THREAD_TS=$THREAD_TS" > thread_ts.txt
 
       - name: Get DM Channel for Each User
         env:
@@ -50,7 +53,7 @@ jobs:
             # Extract the DM channel ID
             DM_CHANNEL_ID=$(echo $DM_CHANNEL_RESPONSE | jq -r '.channel.id')
 
-            # Save the DM channel ID for future workflows
+            # Save the DM channel ID to a file for future workflows
             echo "$USER:$DM_CHANNEL_ID" >> dm_channels.txt
 
             # Send a DM to the user asking for standup information
@@ -60,11 +63,11 @@ jobs:
               --data "{\"channel\":\"$DM_CHANNEL_ID\", \"text\":\"Good morning! Please provide your standup response:\n\nYesterday Tasks:\nToday Tasks:\nAny Blockers?\"}"
           done
 
-      - name: Save DM Channel Info for Later
+      - name: Save Files (Thread TS and DM Channels) for Later Use
         run: |
-          # Commit the dm_channels.txt file so it can be used by the response capturing workflow
+          # Commit both the thread_ts.txt and dm_channels.txt files so they can be used by the response capturing workflow
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add dm_channels.txt
-          git commit -m "Save DM channels for response capture"
+          git add thread_ts.txt dm_channels.txt
+          git commit -m "Save THREAD_TS and DM channels for response capture"
           git push
