@@ -119,8 +119,13 @@ jobs:
             fi
           done < dm_channels.txt
 
-      - name: Save Processed Timestamps
+      - name: Save Processed Timestamps with Git Config
         run: |
+          # Set Git configuration for committing changes
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          # Add and commit the updated processed_timestamps.txt
           git add processed_timestamps.txt
           git commit -m "Update processed timestamps for user responses"
           git push
