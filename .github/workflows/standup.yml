@@ -1,10 +1,9 @@
-name: Daily Standup
+name: Send Standup Prompt
 
 on:
   schedule:
-    # Runs every weekday (Monday to Friday) at 9 AM UTC
-    - cron: '0 6 * * 1-5'
-  workflow_dispatch: # Allows manual triggering
+    - cron: '0 6 * * 1-5'  # Adjust the time as needed
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
   send-standup-prompt:
@@ -23,26 +22,23 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          # Post main message to #test-bot channel
+          # Post the standup message to the #test-bot channel
           RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H "Content-type: application/json" \
             --data "{\"channel\":\"#test-bot\", \"text\":\"📝 Today’s standup summary for $(date +'%Y-%m-%d') has started. Please wait for your direct message and provide your response!\"}")
 
-          # Extract thread timestamp for future reference
+          # Extract the thread_ts (timestamp of the main message)
           THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
 
-          # Log thread_ts for debugging
-          echo "THREAD_TS: $THREAD_TS"
-
-          # Save thread_ts for later use (to append replies)
+          # Save the thread_ts for future workflows
           echo "THREAD_TS=$THREAD_TS" >> $GITHUB_ENV
 
       - name: Get DM Channel for Each User
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          USERS=("U066LTEPJF7")  # List of Slack users
+          USERS=("U066LTEPJF7")  # Add more users as needed
 
           for USER in "${USERS[@]}"; do
             # Open a DM channel with the user
@@ -54,55 +50,21 @@ jobs:
             # Extract the DM channel ID
             DM_CHANNEL_ID=$(echo $DM_CHANNEL_RESPONSE | jq -r '.channel.id')
 
-            # Log DM_CHANNEL_ID for debugging
-            echo "DM_CHANNEL_ID for $USER: $DM_CHANNEL_ID"
-
-            # Save the DM channel ID to a file for later use
+            # Save the DM channel ID for future workflows
             echo "$USER:$DM_CHANNEL_ID" >> dm_channels.txt
 
-            # Send a DM to each user asking for standup information
+            # Send a DM to the user asking for standup information
             curl -s -X POST https://slack.com/api/chat.postMessage \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
               --data "{\"channel\":\"$DM_CHANNEL_ID\", \"text\":\"Good morning! Please provide your standup response:\n\nYesterday Tasks:\nToday Tasks:\nAny Blockers?\"}"
           done
 
-      - name: Poll for User Responses and Post to Thread
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          THREAD_TS: ${{ env.THREAD_TS }}
+      - name: Save DM Channel Info for Later
         run: |
-          # Iterate over users and their DM channel IDs
-          while IFS=: read -r USER DM_CHANNEL_ID; do
-            echo "Polling responses for $USER in DM Channel: $DM_CHANNEL_ID"
-            
-            # Poll the DM channel for the latest message (waiting for the user's response)
-            RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
-              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-              -H "Content-type: application/json" \
-              --data "{\"channel\":\"$DM_CHANNEL_ID\", \"limit\": 1}")
-
-            # Log the response for debugging
-            echo "DM Poll Response for $USER: $RESPONSE"
-
-            # Extract the latest message details
-            USER_RESPONSE=$(echo $RESPONSE | jq -r '.messages[0].text')
-            USER_ID=$(echo $RESPONSE | jq -r '.messages[0].user')
-
-            # Log the extracted response and user ID for debugging
-            echo "Extracted Response for $USER: $USER_RESPONSE"
-            echo "Extracted USER_ID: $USER_ID"
-
-            # Ensure we're only responding to user messages (not the bot's messages)
-            if [[ "$USER_ID" == "$USER" && "$USER_RESPONSE" != "null" ]]; then
-              echo "Posting $USER's response to the thread."
-
-              # Post the user response as a reply in the thread under the main message
-              curl -s -X POST https://slack.com/api/chat.postMessage \
-                -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-                -H "Content-type: application/json" \
-                --data "{\"channel\":\"#test-bot\", \"text\":\"@$USER's standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}"
-            else
-              echo "No valid response from $USER, or the response is from the bot."
-            fi
-          done < dm_channels.txt
+          # Commit the dm_channels.txt file so it can be used by the response capturing workflow
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add dm_channels.txt
+          git commit -m "Save DM channels for response capture"
+          git push
