@@ -40,8 +40,8 @@ jobs:
           fi
           echo "Retrieved THREAD_TS: $THREAD_TS"
 
-          # Log the dm_channels.txt file to verify its contents
-          cat dm_channels.txt
+          # Export THREAD_TS to make it available to subsequent steps
+          echo "THREAD_TS=$THREAD_TS" >> $GITHUB_ENV
 
       - name: Poll for User Responses
         env:
