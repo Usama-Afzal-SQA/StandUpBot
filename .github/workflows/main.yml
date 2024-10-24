@@ -101,6 +101,9 @@ jobs:
                 -H "Content-type: application/json" \
                 --data "{\"user\":\"$USER_ID\"}")
               
+              # Log the entire user info response for debugging
+              echo "User Info Response: $USER_INFO"
+              
               # Extract the user's real name (or fallback to display name)
               USER_NAME=$(echo $USER_INFO | jq -r '.user.real_name // .user.name')
 
