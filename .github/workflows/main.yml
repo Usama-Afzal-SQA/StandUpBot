@@ -1,0 +1,62 @@
+name: Capture User Responses
+
+on:
+  schedule:
+    - cron: '*/5 6-9 * * 1-5'  # Runs every 5 minutes between 6 AM and 9 AM UTC (adjust the time as needed)
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  capture-responses:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install gh -y
+
+      - name: Retrieve Thread and DM Channel Info
+        run: |
+          # Read the saved environment variables from the previous workflow
+          THREAD_TS=$(cat $GITHUB_ENV | grep THREAD_TS | cut -d '=' -f2)
+          echo "THREAD_TS: $THREAD_TS"
+
+          # Fetch the saved dm_channels.txt file from the previous workflow
+          git pull
+          cat dm_channels.txt
+
+      - name: Poll for User Responses
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          THREAD_TS: ${{ env.THREAD_TS }}
+        run: |
+          # Iterate over users and their DM channel IDs
+          while IFS=: read -r USER DM_CHANNEL_ID; do
+            echo "Polling responses for $USER in DM Channel: $DM_CHANNEL_ID"
+            
+            # Poll the DM channel for the latest message (waiting for the user's response)
+            RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
+              -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              -H "Content-type: application/json" \
+              --data "{\"channel\":\"$DM_CHANNEL_ID\", \"limit\": 1}")
+
+            # Extract the latest message details
+            USER_RESPONSE=$(echo $RESPONSE | jq -r '.messages[0].text')
+            USER_ID=$(echo $RESPONSE | jq -r '.messages[0].user')
+
+            # Check if the response was sent by the user and is not null
+            if [[ "$USER_ID" == "$USER" && "$USER_RESPONSE" != "null" ]]; then
+              echo "Posting $USER's response to the thread."
+
+              # Post the user response as a reply in the thread under the main message
+              curl -s -X POST https://slack.com/api/chat.postMessage \
+                -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+                -H "Content-type: application/json" \
+                --data "{\"channel\":\"#test-bot\", \"text\":\"@$USER's standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}"
+            else
+              echo "No valid response from $USER yet."
+            fi
+          done < dm_channels.txt
