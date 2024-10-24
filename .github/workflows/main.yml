@@ -20,12 +20,23 @@ jobs:
 
       - name: Retrieve Thread and DM Channel Info
         run: |
-          # Read the saved environment variables from the previous workflow
-          THREAD_TS=$(cat $GITHUB_ENV | grep THREAD_TS | cut -d '=' -f2)
-          echo "THREAD_TS: $THREAD_TS"
+          # Ensure the saved environment variables from the previous workflow are available
+          if [ ! -f dm_channels.txt ]; then
+            echo "Error: dm_channels.txt not found. Cannot proceed."
+            exit 1
+          fi
 
-          # Fetch the saved dm_channels.txt file from the previous workflow
           git pull
+
+          # Set thread_ts from the environment or fail if it's missing
+          THREAD_TS=$(grep THREAD_TS $GITHUB_ENV | cut -d '=' -f2)
+          if [ -z "$THREAD_TS" ]; then
+            echo "Error: THREAD_TS is not set. Cannot proceed."
+            exit 1
+          fi
+          echo "Retrieved THREAD_TS: $THREAD_TS"
+
+          # Log the dm_channels.txt file to verify its contents
           cat dm_channels.txt
 
       - name: Poll for User Responses
@@ -33,30 +44,54 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           THREAD_TS: ${{ env.THREAD_TS }}
         run: |
+          # Ensure THREAD_TS is available and valid
+          if [ -z "$THREAD_TS" ]; then
+            echo "Error: THREAD_TS is not set. Exiting."
+            exit 1
+          fi
+
           # Iterate over users and their DM channel IDs
           while IFS=: read -r USER DM_CHANNEL_ID; do
             echo "Polling responses for $USER in DM Channel: $DM_CHANNEL_ID"
-            
+
             # Poll the DM channel for the latest message (waiting for the user's response)
             RESPONSE=$(curl -s -X POST https://slack.com/api/conversations.history \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
               --data "{\"channel\":\"$DM_CHANNEL_ID\", \"limit\": 1}")
 
+            # Log the response for debugging
+            echo "DM Poll Response for $USER: $RESPONSE"
+
             # Extract the latest message details
             USER_RESPONSE=$(echo $RESPONSE | jq -r '.messages[0].text')
             USER_ID=$(echo $RESPONSE | jq -r '.messages[0].user')
 
+            # Log the extracted response and user ID for debugging
+            echo "Extracted Response for $USER: $USER_RESPONSE"
+            echo "Extracted USER_ID: $USER_ID"
+
             # Check if the response was sent by the user and is not null
-            if [[ "$USER_ID" == "$USER" && "$USER_RESPONSE" != "null" ]]; then
+            if [[ "$USER_ID" == "$USER" && "$USER_RESPONSE" != "null" && "$USER_RESPONSE" != "Good morning! Please provide your standup response:" ]]; then
               echo "Posting $USER's response to the thread."
 
               # Post the user response as a reply in the thread under the main message
-              curl -s -X POST https://slack.com/api/chat.postMessage \
+              POST_RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
                 -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
                 -H "Content-type: application/json" \
-                --data "{\"channel\":\"#test-bot\", \"text\":\"@$USER's standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}"
+                --data "{\"channel\":\"#test-bot\", \"text\":\"@$USER's standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}")
+
+              # Log the response from posting the message
+              echo "Post Response: $POST_RESPONSE"
+
+              # Check for errors in posting
+              POST_OK=$(echo $POST_RESPONSE | jq -r '.ok')
+              if [[ "$POST_OK" != "true" ]]; then
+                echo "Error posting response to thread: $POST_RESPONSE"
+              else
+                echo "Successfully posted response to thread."
+              fi
             else
-              echo "No valid response from $USER yet."
+              echo "No valid response from $USER yet, or the response is from the bot."
             fi
           done < dm_channels.txt
