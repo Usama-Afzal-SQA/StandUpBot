@@ -18,7 +18,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install gh -y
 
-      - name: Retrieve Thread and DM Channel Info
+      - name: Retrieve Thread, DM Channel Info, and Processed Timestamps
         run: |
           git pull  # Pull the latest changes to ensure we get the saved files
 
@@ -40,7 +40,13 @@ jobs:
           fi
           echo "Retrieved THREAD_TS: $THREAD_TS"
 
-          # Export THREAD_TS to make it available to subsequent steps
+          # Ensure the file tracking processed messages exists, create if not
+          if [ ! -f processed_timestamps.txt ]; then
+            touch processed_timestamps.txt
+          fi
+          cat processed_timestamps.txt
+
+          # Export THREAD_TS for subsequent steps
           echo "THREAD_TS=$THREAD_TS" >> $GITHUB_ENV
 
       - name: Poll for User Responses
@@ -48,11 +54,16 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           THREAD_TS: ${{ env.THREAD_TS }}
         run: |
-          # Ensure THREAD_TS is available and valid
-          if [ -z "$THREAD_TS" ]; then
-            echo "Error: THREAD_TS is not set. Exiting."
-            exit 1
-          fi
+          # Function to get the last processed message timestamp for a user
+          get_last_processed_timestamp() {
+            grep "^$1:" processed_timestamps.txt | cut -d ':' -f2
+          }
+
+          # Function to update the processed timestamp for a user
+          update_last_processed_timestamp() {
+            sed -i "/^$1:/d" processed_timestamps.txt  # Remove any existing entry for the user
+            echo "$1:$2" >> processed_timestamps.txt   # Add the new timestamp
+          }
 
           # Iterate over users and their DM channel IDs
           while IFS=: read -r USER DM_CHANNEL_ID; do
@@ -70,13 +81,19 @@ jobs:
             # Extract the latest message details
             USER_RESPONSE=$(echo $RESPONSE | jq -r '.messages[0].text')
             USER_ID=$(echo $RESPONSE | jq -r '.messages[0].user')
+            RESPONSE_TIMESTAMP=$(echo $RESPONSE | jq -r '.messages[0].ts')
 
             # Log the extracted response and user ID for debugging
             echo "Extracted Response for $USER: $USER_RESPONSE"
             echo "Extracted USER_ID: $USER_ID"
+            echo "Response Timestamp: $RESPONSE_TIMESTAMP"
 
-            # Check if the response was sent by the user and is not null
-            if [[ "$USER_ID" == "$USER" && "$USER_RESPONSE" != "null" && "$USER_RESPONSE" != "Good morning! Please provide your standup response:" ]]; then
+            # Get the last processed timestamp for this user
+            LAST_PROCESSED_TIMESTAMP=$(get_last_processed_timestamp "$USER")
+            echo "Last processed timestamp for $USER: $LAST_PROCESSED_TIMESTAMP"
+
+            # Check if the response was sent by the user and is newer than the last processed message
+            if [[ "$USER_ID" == "$USER" && "$USER_RESPONSE" != "null" && "$USER_RESPONSE" != "Good morning! Please provide your standup response:" && ( -z "$LAST_PROCESSED_TIMESTAMP" || "$RESPONSE_TIMESTAMP" > "$LAST_PROCESSED_TIMESTAMP" ) ]]; then
               echo "Posting $USER's response to the thread."
 
               # Post the user response as a reply in the thread under the main message
@@ -94,8 +111,16 @@ jobs:
                 echo "Error posting response to thread: $POST_RESPONSE"
               else
                 echo "Successfully posted response to thread."
+                # Update the last processed timestamp for this user
+                update_last_processed_timestamp "$USER" "$RESPONSE_TIMESTAMP"
               fi
             else
-              echo "No valid response from $USER yet, or the response is from the bot."
+              echo "No new valid response from $USER yet, or the response is from the bot."
             fi
           done < dm_channels.txt
+
+      - name: Save Processed Timestamps
+        run: |
+          git add processed_timestamps.txt
+          git commit -m "Update processed timestamps for user responses"
+          git push
