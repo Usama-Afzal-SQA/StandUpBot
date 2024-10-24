@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install GitHub CLI
+      - name: Install GitHub CLI 
         run: |
           sudo apt-get update
           sudo apt-get install gh -y
@@ -75,25 +75,12 @@ jobs:
               -H "Content-type: application/json" \
               --data "{\"channel\":\"$DM_CHANNEL_ID\", \"limit\": 1}")
 
-            # Log the entire response for debugging
+            # Log the response for debugging
             echo "Full Poll Response for $USER: $RESPONSE"
-
-            # Extract user ID and bot ID if they exist
-            BOT_ID=$(echo $RESPONSE | jq -r '.messages[0].bot_id')
-            USER_ID=$(echo $RESPONSE | jq -r '.messages[0].user')
-            
-            if [[ "$BOT_ID" != "null" ]]; then
-              echo "Message is from a bot (bot_id: $BOT_ID), skipping."
-              continue
-            fi
-
-            if [[ "$USER_ID" == "null" ]]; then
-              echo "No user ID found in message, skipping."
-              continue
-            fi
 
             # Extract the latest message details
             USER_RESPONSE=$(echo $RESPONSE | jq -r '.messages[0].text')
+            USER_ID=$(echo $RESPONSE | jq -r '.messages[0].user')
             RESPONSE_TIMESTAMP=$(echo $RESPONSE | jq -r '.messages[0].ts')
 
             # Log the extracted response and user ID for debugging
@@ -119,14 +106,6 @@ jobs:
               
               # Extract the user's real name (or fallback to display name)
               USER_NAME=$(echo $USER_INFO | jq -r '.user.real_name // .user.name')
-
-              # Log the user's name
-              echo "User name extracted: $USER_NAME"
-
-              if [[ "$USER_NAME" == "null" ]]; then
-                echo "User name is null, skipping this message."
-                continue
-              fi
 
               echo "Posting $USER_NAME's response to the thread."
 
