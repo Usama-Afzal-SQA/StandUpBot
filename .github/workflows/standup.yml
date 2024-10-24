@@ -51,9 +51,6 @@ jobs:
               -H "Content-type: application/json" \
               --data "{\"users\":\"$USER\"}")
 
-            # Log the DM response for debugging
-            echo "DM_CHANNEL_RESPONSE: $DM_CHANNEL_RESPONSE"
-
             # Extract the DM channel ID
             DM_CHANNEL_ID=$(echo $DM_CHANNEL_RESPONSE | jq -r '.channel.id')
 
@@ -63,7 +60,7 @@ jobs:
             # Save the DM channel ID to a file for later use
             echo "$USER:$DM_CHANNEL_ID" >> dm_channels.txt
 
-            # Send a DM to each user asking for standup information (No response to thread yet)
+            # Send a DM to each user asking for standup information
             curl -s -X POST https://slack.com/api/chat.postMessage \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
@@ -96,10 +93,10 @@ jobs:
             echo "Extracted Response for $USER: $USER_RESPONSE"
             echo "Extracted USER_ID: $USER_ID"
 
-            # Check if the response was sent by the user and is not null
+            # Ensure we're only responding to user messages (not the bot's messages)
             if [[ "$USER_ID" == "$USER" && "$USER_RESPONSE" != "null" ]]; then
               echo "Posting $USER's response to the thread."
-              
+
               # Post the user response as a reply in the thread under the main message
               curl -s -X POST https://slack.com/api/chat.postMessage \
                 -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
