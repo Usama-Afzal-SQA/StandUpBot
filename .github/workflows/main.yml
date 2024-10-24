@@ -3,7 +3,7 @@ name: Capture User Responses
 on:
   schedule:
     - cron: '*/5 6-9 * * 1-5'  # Runs every 5 minutes between 6 AM and 9 AM UTC (adjust the time as needed)
-  workflow_dispatch: # Allows manual triggering
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
   capture-responses:
@@ -20,16 +20,20 @@ jobs:
 
       - name: Retrieve Thread and DM Channel Info
         run: |
-          # Ensure the saved environment variables from the previous workflow are available
+          git pull  # Pull the latest changes to ensure we get the saved files
+
+          # Ensure both thread_ts.txt and dm_channels.txt exist
+          if [ ! -f thread_ts.txt ]; then
+            echo "Error: thread_ts.txt not found. Cannot proceed."
+            exit 1
+          fi
           if [ ! -f dm_channels.txt ]; then
             echo "Error: dm_channels.txt not found. Cannot proceed."
             exit 1
           fi
 
-          git pull
-
-          # Set thread_ts from the environment or fail if it's missing
-          THREAD_TS=$(grep THREAD_TS $GITHUB_ENV | cut -d '=' -f2)
+          # Retrieve the thread_ts from the file
+          THREAD_TS=$(cat thread_ts.txt | cut -d '=' -f2)
           if [ -z "$THREAD_TS" ]; then
             echo "Error: THREAD_TS is not set. Cannot proceed."
             exit 1
