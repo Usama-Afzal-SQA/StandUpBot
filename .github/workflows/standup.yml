@@ -26,7 +26,7 @@ jobs:
           RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H "Content-type: application/json" \
-            --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"@here 📝 Today’s standup summary for $(date +'%Y-%m-%d') has started. Please provide your response to Goally Standup Bot!\"}")
+            --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"Final Test"}")
 
           # Extract the thread_ts (timestamp of the main message)
           THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
@@ -60,7 +60,7 @@ jobs:
             curl -s -X POST https://slack.com/api/chat.postMessage \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
-              --data "{\"channel\":\"$DM_CHANNEL_ID\", \"text\":\"Good morning! Please provide your standup response:\n\n\nYESTERDAY'S TASKS:\n\nTODAY TASKS:\n\nANY BLOCKERS?\"}"
+              --data "{\"channel\":\"$DM_CHANNEL_ID\", \"text\":\"Test Message"}"
           done
 
       - name: Save Files (Thread TS and DM Channels) for Later Use
