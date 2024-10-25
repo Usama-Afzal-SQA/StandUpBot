@@ -26,7 +26,7 @@ jobs:
           RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
             -H "Content-type: application/json" \
-            --data "{\"channel\":\"#test-bot\", \"text\":\"📝 Today’s standup summary for $(date +'%Y-%m-%d') has started. Please wait for your direct message and provide your response!\"}")
+            --data "{\"channel\":\"#test-bot\", \"text\":\"@here 📝 Today’s standup summary for $(date +'%Y-%m-%d') has started. Please provide your response to Goally Standup Bot!\"}")
 
           # Extract the thread_ts (timestamp of the main message)
           THREAD_TS=$(echo $RESPONSE | jq -r '.ts')
@@ -41,7 +41,7 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          USERS=("U066LTEPJF7")  # Add more users as needed
+          USERS=("U066LTEPJF7" "U05C0U50HJS")  # Add more users as needed
 
           for USER in "${USERS[@]}"; do
             # Open a DM channel with the user
@@ -60,7 +60,7 @@ jobs:
             curl -s -X POST https://slack.com/api/chat.postMessage \
               -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
               -H "Content-type: application/json" \
-              --data "{\"channel\":\"$DM_CHANNEL_ID\", \"text\":\"Good morning! Please provide your standup response:\n\nYesterday Tasks:\nToday Tasks:\nAny Blockers?\"}"
+              --data "{\"channel\":\"$DM_CHANNEL_ID\", \"text\":\"Good morning! Please provide your standup response:\n\n\nYESTERDAY'S TASKS:\n\nTODAY TASKS:\n\nANY BLOCKERS?\"}"
           done
 
       - name: Save Files (Thread TS and DM Channels) for Later Use
