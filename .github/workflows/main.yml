@@ -100,7 +100,7 @@ jobs:
               POST_RESPONSE=$(curl -s -X POST https://slack.com/api/chat.postMessage \
                 -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
                 -H "Content-type: application/json" \
-                --data "{\"channel\":\"#test-bot\", \"text\":\"<@$USER_ID>'s standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}")
+                --data "{\"channel\":\"#stand-up-meeting\", \"text\":\"<@$USER_ID>'s standup summary:\n$USER_RESPONSE\", \"thread_ts\":\"$THREAD_TS\"}")
 
               # Log the response from posting the message
               echo "Post Response: $POST_RESPONSE"
