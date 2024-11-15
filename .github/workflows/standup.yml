@@ -41,7 +41,7 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: |
-          USERS=("U066LTEPJF7" "U05C0U50HJS" "U03JSUCLAF3" "U07T6NHS2UR" "U042L58JY0L" "U05EDCGG3BM" "U03JSUS7Z4Z" "U049S2V1QUW")  # Add more users as needed
+          USERS=("U066LTEPJF7" "U05C0U50HJS" "U03JSUCLAF3" "U07T6NHS2UR" "U042L58JY0L" "U05EDCGG3BM" "U03JSUS7Z4Z" "U049S2V1QUW" "U07V1N3MPJS")  # Add more users as needed
  
           for USER in "${USERS[@]}"; do
             # Open a DM channel with the user
